@@ -89,7 +89,65 @@ void Engine<VertexType, EdgeType, GatherType>::destroy()
 	delete EngineBarrier;
 	delete [] ArgumentList;
 }
-
+template<typename VertexType, typename EdgeType, typename GatherType>
+void Engine<VertexType, EdgeType, GatherType>::Engine_Gather(GatherType& gatherValue, EdgeDirection GatherDir, IdType CurrId)
+{
+	if(GatherDir == IN)
+	{
+		for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
+		{
+			gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
+		}			
+	}
+	else if(GatherDir == OUT)
+	{
+		for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
+		{
+			gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
+		}
+	}
+	else if(GatherDir == BOTH)
+	{
+		for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
+		{
+			gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
+		}
+		for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
+		{
+			gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
+		}
+	}
+}
+template<typename VertexType, typename EdgeType, typename GatherType>
+void Engine<VertexType, EdgeType, GatherType>::Engine_Scatter(IdType CurrId)
+{
+	EdgeDirection ScatterDir = vertex_Program->scatterDirection(VerticesList[CurrId], *EngineInfo);
+	if(ScatterDir == OUT)
+	{
+		for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
+		{
+			vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
+		}	
+	}
+	else if(ScatterDir == IN)
+	{
+		for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
+		{
+			vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
+		}
+	}
+	else if(ScatterDir == BOTH)
+	{
+		for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
+		{
+			vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
+		}
+		for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
+		{
+			vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
+		}
+	}
+}
 template<typename VertexType, typename EdgeType, typename GatherType>
 void Engine<VertexType, EdgeType, GatherType>::run(VertexProgram<VertexType, EdgeType, GatherType>& vertexProgram, int nIters, bool parallel)
 {
@@ -220,33 +278,9 @@ void Engine<VertexType, EdgeType, GatherType>::run(VertexProgram<VertexType, Edg
 				}
 							
 				//get gatherValue
-				if(GatherDir == IN)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}			
-				}
-				else if(GatherDir == OUT)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}
-				}
-				else if(GatherDir == BOTH)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}
-				}
+				Engine_Gather(gatherValue, GatherDir, CurrId);
 
-				//unlock read lock
+				//unlock read lock on neighbor vertex
 				if(GatherDir == IN || GatherDir == OUT || GatherDir == BOTH)
 				{
 					for(int j = 0; j < tmpvector.size(); j++)
@@ -259,40 +293,17 @@ void Engine<VertexType, EdgeType, GatherType>::run(VertexProgram<VertexType, Edg
 				}
 				vertex_Program->apply(VerticesList[CurrId], gatherValue, *EngineInfo);
 
-				//unlock write lock
+				//unlock write lock on current vertex
 				if(GatherDir == IN || GatherDir == OUT || GatherDir == BOTH)
 				{
 						pthread_rwlock_unlock(&RwlockList[CurrId]);
 				}
 
 				//scatter 
-				EdgeDirection ScatterDir = vertex_Program->scatterDirection(VerticesList[CurrId], *EngineInfo);
-				if(ScatterDir == OUT)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}	
-				}
-				else if(ScatterDir == IN)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}
-				}
-				else if(ScatterDir == BOTH)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}
-				}
+				
+				Engine_Scatter(CurrId);
 			}
+			
 			if(parallel)
 			{
 				if(dynamic)
@@ -343,7 +354,6 @@ EngineContext& Engine<VertexType, EdgeType, GatherType>::engineContext()
 {
 	return *EngineInfo;
 }
-
 
 template<typename VertexType, typename EdgeType, typename GatherType>
 void* Engine<VertexType, EdgeType, GatherType>::thread_worker(void* arg)
@@ -461,33 +471,9 @@ void* Engine<VertexType, EdgeType, GatherType>::thread_worker(void* arg)
 				}
 
 				//gather
-				if(GatherDir == IN)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}			
-				}
-				else if(GatherDir == OUT)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}
-				}
-				else if(GatherDir == BOTH)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						gatherValue += vertex_Program->gather(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}
-				}
-			
+				Engine_Gather(gatherValue, GatherDir, CurrId);
 
+				//unlock read lock on neighbor vertex
 				if(GatherDir == IN || GatherDir == OUT || GatherDir == BOTH)
 				{
 					for(int j = 0; j < tmpvector.size(); j++)
@@ -498,39 +484,19 @@ void* Engine<VertexType, EdgeType, GatherType>::thread_worker(void* arg)
 						}
 					}
 				}
+			
+				//apply
 				vertex_Program->apply(VerticesList[CurrId], gatherValue, *EngineInfo);
 
-				//unlock
+				//unlock write lock on current vertex
 				if(GatherDir == IN || GatherDir == OUT || GatherDir == BOTH)
 				{
 						pthread_rwlock_unlock(&RwlockList[CurrId]);
 				}
-				EdgeDirection ScatterDir = vertex_Program->scatterDirection(VerticesList[CurrId], *EngineInfo);
-				if(ScatterDir == OUT)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}	
-				}
-				else if(ScatterDir == IN)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}
-				}
-				else if(ScatterDir == BOTH)
-				{
-					for(int j = 0; j < VerticesList[CurrId].numOutEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].outEdge(j), *EngineInfo);
-					}
-					for(int j = 0; j < VerticesList[CurrId].numInEdges(); j++)
-					{
-						vertex_Program->scatter(VerticesList[CurrId], VerticesList[CurrId].inEdge(j), *EngineInfo);
-					}
-				}		
+		
+				//scatter
+				
+				Engine_Scatter(CurrId);
 			}
 			
 			if(dynamic)

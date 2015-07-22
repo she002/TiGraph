@@ -28,7 +28,8 @@ class Engine {
 	
 	static void* thread_worker_helper(void* arg);
   private:
-	
+	void Engine_Gather(GatherType& gatherValue, EdgeDirection GatherDir, IdType CurrId);
+	void Engine_Scatter(IdType CurrId);
 	CSR<VertexType, EdgeType>* GraphData;
 	EngineContext* EngineInfo;
 	EngineVertex<VertexType, EdgeType>* VerticesList;
